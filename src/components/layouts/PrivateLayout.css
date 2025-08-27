@@ -4,7 +4,7 @@
 }
 
 .private-header {
-  background: #4A90E2;
+  background: #4a90e2;
   color: white;
   padding: 1rem 2rem;
   display: flex;
@@ -22,7 +22,7 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #FFA500;
+  background: #ffa500;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -90,9 +90,9 @@
 }
 
 .nav-item.active {
-  background: #E8F4FD;
-  border-left-color: #4A90E2;
-  color: #4A90E2;
+  background: #e8f4fd;
+  border-left-color: #4a90e2;
+  color: #4a90e2;
 }
 
 .nav-item.disabled {
@@ -102,13 +102,4 @@
 
 .nav-item .icon {
   font-size: 1.2rem;
-}
-
-.content {
-  flex: 1;
-  padding: 2rem;
-  background: white;
-  margin: 1rem;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
