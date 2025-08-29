@@ -1,5 +1,5 @@
 import "./PriceList.css";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import axiosInstance from "../utils/axios.js";
 
 const ArrowDownIcon = () => (
@@ -11,9 +11,9 @@ const ArrowDownIcon = () => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
   >
     <path d="M12 5v14" />
     <path d="m19 12-7 7-7-7" />
@@ -29,9 +29,9 @@ const ArrowUpIcon = () => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
   >
     <path d="m5 12 7-7 7 7" />
     <path d="M12 19V5" />
@@ -46,10 +46,9 @@ const ThreeDotsIcon = () => (
     viewBox="0 0 24 24"
     fill="none"
     stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    class="lucide lucide-ellipsis-icon lucide-ellipsis"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
   >
     <circle cx="12" cy="12" r="1" />
     <circle cx="19" cy="12" r="1" />
@@ -73,128 +72,189 @@ const ArrowRightIcon = () => (
   </svg>
 );
 
+const SearchIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="m21 21-4.34-4.34" />
+    <circle cx="11" cy="11" r="8" />
+  </svg>
+);
+
 const PriceList = () => {
   const [products, setProducts] = useState([]);
-  const [originalProducts, setOriginalProducts] = useState([]);
-  const [editedProducts, setEditedProducts] = useState({});
+  const [editedData, setEditedData] = useState({});
   const [editedRows, setEditedRows] = useState(new Set());
   const [dropdownOpen, setDropdownOpen] = useState(null);
+  const [searchArticleNo, setSearchArticleNo] = useState("");
+  const [searchProduct, setSearchProduct] = useState("");
   const [sortConfig, setSortConfig] = useState({
     articleNo: "desc",
     name: "desc",
     primaryField: "articleNo",
   });
+  const [nextTempId, setNextTempId] = useState(-1); // For temporary IDs for new products
 
   const fetchProducts = async () => {
     try {
       const response = await axiosInstance.get("/products");
-      const fetchedProducts = response.data.products;
-      setProducts(fetchedProducts);
-      setOriginalProducts(fetchedProducts);
-      applySorting(fetchedProducts, {
-        articleNo: "desc",
-        name: "desc",
-        primaryField: "articleNo",
-      });
+      const data = response.data.products;
+      setProducts(data);
     } catch (error) {
-      console.error("Error fetching config:", error);
+      console.error("Error fetching products:", error);
     }
   };
 
-  const applySorting = (productsToSort, config) => {
-    const sortedProducts = [...productsToSort].sort((a, b) => {
-      const aArticleNo = a.articleNo || "";
-      const bArticleNo = b.articleNo || "";
-      const aName = a.name || "";
-      const bName = b.name || "";
+  const getProductWithEdits = (product) => {
+    const productId = product.id || product.tempId;
+    if (editedData[productId]) {
+      return { ...product, ...editedData[productId] };
+    }
+    return product;
+  };
 
-      let primaryComparison = 0;
-      let secondaryComparison = 0;
-
-      if (config.primaryField === "articleNo") {
-        if (config.articleNo === "desc") {
-          primaryComparison = bArticleNo.localeCompare(aArticleNo);
-        } else {
-          primaryComparison = aArticleNo.localeCompare(bArticleNo);
-        }
-
-        if (primaryComparison !== 0) {
-          return primaryComparison;
-        }
-
-        if (config.name === "desc") {
-          secondaryComparison = bName.localeCompare(aName);
-        } else {
-          secondaryComparison = aName.localeCompare(bName);
-        }
-      } else {
-        if (config.name === "desc") {
-          primaryComparison = bName.localeCompare(aName);
-        } else {
-          primaryComparison = aName.localeCompare(bName);
-        }
-
-        if (primaryComparison !== 0) {
-          return primaryComparison;
-        }
-
-        if (config.articleNo === "desc") {
-          secondaryComparison = bArticleNo.localeCompare(aArticleNo);
-        } else {
-          secondaryComparison = aArticleNo.localeCompare(bArticleNo);
-        }
+  const sortProducts = (productsToSort, config) => {
+    return [...productsToSort].sort((a, b) => {
+      // Keep new products (with tempId) at the top
+      if (a.tempId && !b.tempId) return -1;
+      if (!a.tempId && b.tempId) return 1;
+      if (a.tempId && b.tempId) {
+        return a.tempId - b.tempId;
       }
 
-      return secondaryComparison;
-    });
+      const aData = getProductWithEdits(a);
+      const bData = getProductWithEdits(b);
 
-    setProducts(sortedProducts);
+      const getValue = (item, field) => item[field] || "";
+
+      const primaryField = config.primaryField;
+      const primaryDir = config[primaryField];
+      let comparison =
+        primaryDir === "desc"
+          ? getValue(bData, primaryField).localeCompare(
+              getValue(aData, primaryField)
+            )
+          : getValue(aData, primaryField).localeCompare(
+              getValue(bData, primaryField)
+            );
+
+      if (comparison !== 0) return comparison;
+
+      const secondaryField =
+        primaryField === "articleNo" ? "name" : "articleNo";
+      const secondaryDir = config[secondaryField];
+      return secondaryDir === "desc"
+        ? getValue(bData, secondaryField).localeCompare(
+            getValue(aData, secondaryField)
+          )
+        : getValue(aData, secondaryField).localeCompare(
+            getValue(bData, secondaryField)
+          );
+    });
   };
+
+  const getFilteredAndSortedProducts = useCallback(() => {
+    let filtered = products;
+
+    if (searchArticleNo) {
+      filtered = filtered.filter((p) => {
+        const productData = getProductWithEdits(p);
+        return productData.articleNo
+          ?.toLowerCase()
+          .includes(searchArticleNo.toLowerCase());
+      });
+    }
+    if (searchProduct) {
+      filtered = filtered.filter((p) => {
+        const productData = getProductWithEdits(p);
+        return productData.name
+          ?.toLowerCase()
+          .includes(searchProduct.toLowerCase());
+      });
+    }
+
+    return sortProducts(filtered, sortConfig);
+  }, [products, searchArticleNo, searchProduct, sortConfig, editedData]);
 
   const handleSort = (field) => {
-    const newDirection = sortConfig[field] === "desc" ? "asc" : "desc";
-    const newSortConfig = {
+    const newConfig = {
       ...sortConfig,
-      [field]: newDirection,
+      [field]: sortConfig[field] === "desc" ? "asc" : "desc",
       primaryField: field,
     };
-
-    setSortConfig(newSortConfig);
-    applySorting(products, newSortConfig);
+    setSortConfig(newConfig);
   };
 
-  const handleInputChange = (productIndex, field, value) => {
-    const updatedProducts = [...products];
-    updatedProducts[productIndex] = {
-      ...updatedProducts[productIndex],
-      [field]: value,
-    };
-    setProducts(updatedProducts);
+  const handleInputChange = (product, field, value) => {
+    const productId = product.id || product.tempId;
 
-    setEditedProducts((prev) => ({
+    setEditedData((prev) => ({
       ...prev,
-      [productIndex]: {
-        ...prev[productIndex],
+      [productId]: {
+        ...prev[productId],
         [field]: value,
       },
     }));
 
-    setEditedRows((prev) => new Set([...prev, productIndex]));
+    setEditedRows((prev) => new Set([...prev, productId]));
   };
 
-  const handleSave = async (productIndex) => {
-    const productToSave = products[productIndex];
+  const handleAddNewProduct = () => {
+    const newProduct = {
+      tempId: nextTempId,
+      articleNo: "",
+      name: "",
+      inPrice: 0,
+      price: 0,
+      unit: "",
+      inStock: 0,
+      description: "",
+    };
+
+    setProducts((prev) => [newProduct, ...prev]);
+    setEditedRows((prev) => new Set([...prev, nextTempId]));
+    setNextTempId((prev) => prev - 1);
+  };
+
+  const handleSave = async (product) => {
+    const productId = product.id || product.tempId;
+    const editedProduct = getProductWithEdits(product);
+
+    if (!editedProduct.articleNo.trim() || !editedProduct.name.trim()) {
+      alert("Article No. and Product/Service fields cannot be empty.");
+      return;
+    }
+
     try {
-      await axiosInstance.put(`/products/${productToSave.id}`, productToSave);
+      if (product.tempId) {
+        const response = await axiosInstance.post("/products", editedProduct);
+        setProducts((prev) =>
+          prev.map((p) => (p.tempId === product.tempId ? response.data : p))
+        );
+      } else {
+        await axiosInstance.put(`/products/${product.id}`, editedProduct);
+        setProducts((prev) =>
+          prev.map((p) => (p.id === product.id ? editedProduct : p))
+        );
+      }
+
+      setEditedData((prev) => {
+        const newData = { ...prev };
+        delete newData[productId];
+        return newData;
+      });
       setEditedRows((prev) => {
         const newSet = new Set(prev);
-        newSet.delete(productIndex);
+        newSet.delete(productId);
         return newSet;
-      });
-      setEditedProducts((prev) => {
-        const newEditedProducts = { ...prev };
-        delete newEditedProducts[productIndex];
-        return newEditedProducts;
       });
       setDropdownOpen(null);
     } catch (error) {
@@ -202,17 +262,28 @@ const PriceList = () => {
     }
   };
 
-  const handleDelete = async (productIndex) => {
-    const productToDelete = products[productIndex];
+  const handleDelete = async (product) => {
+    const productId = product.id || product.tempId;
+
     try {
-      await axiosInstance.delete(`/products/${productToDelete.id}`);
-      const updatedProducts = products.filter(
-        (_, index) => index !== productIndex
+      if (!product.tempId) {
+        await axiosInstance.delete(`/products/${product.id}`);
+      }
+
+      setProducts((prev) =>
+        prev.filter((p) =>
+          p.tempId ? p.tempId !== product.tempId : p.id !== product.id
+        )
       );
-      setProducts(updatedProducts);
+
+      setEditedData((prev) => {
+        const newData = { ...prev };
+        delete newData[productId];
+        return newData;
+      });
       setEditedRows((prev) => {
         const newSet = new Set(prev);
-        newSet.delete(productIndex);
+        newSet.delete(productId);
         return newSet;
       });
       setDropdownOpen(null);
@@ -221,71 +292,61 @@ const PriceList = () => {
     }
   };
 
-  const toggleDropdown = (productIndex) => {
-    setDropdownOpen(dropdownOpen === productIndex ? null : productIndex);
-  };
-
   useEffect(() => {
     fetchProducts();
   }, []);
+
+  const displayedProducts = getFilteredAndSortedProducts();
+
+  const renderInput = (product, field, type = "text") => {
+    const productData = getProductWithEdits(product);
+    return (
+      <input
+        type={type}
+        value={productData[field] || ""}
+        onChange={(e) => handleInputChange(product, field, e.target.value)}
+        className="editable-input"
+      />
+    );
+  };
+
+  const renderSearchInput = (placeholder, value, setValue) => (
+    <div className="search-group">
+      <input
+        type="text"
+        placeholder={placeholder}
+        className="search-input"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+      />
+      <div className="search-button" style={{ cursor: "pointer" }}>
+        <SearchIcon />
+      </div>
+    </div>
+  );
 
   return (
     <div className="price-list-page">
       <div className="page-header">
         <div className="search-section">
-          <div className="search-group">
-            <input
-              type="text"
-              placeholder="Search Article No..."
-              className="search-input"
-            />
-            <div className="search-button">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="lucide lucide-search-icon lucide-search"
-              >
-                <path d="m21 21-4.34-4.34" />
-                <circle cx="11" cy="11" r="8" />
-              </svg>
-            </div>
-          </div>
-          <div className="search-group">
-            <input
-              type="text"
-              placeholder="Search Product..."
-              className="search-input"
-            />
-            <div className="search-button">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="lucide lucide-search-icon lucide-search"
-              >
-                <path d="m21 21-4.34-4.34" />
-                <circle cx="11" cy="11" r="8" />
-              </svg>
-            </div>
-          </div>
+          {renderSearchInput(
+            "Search Article No...",
+            searchArticleNo,
+            setSearchArticleNo
+          )}
+          {renderSearchInput(
+            "Search Product...",
+            searchProduct,
+            setSearchProduct
+          )}
         </div>
 
         <div className="action-buttons">
-          <button className="action-btn new-product">
-            New Product <span>➕</span>
+          <button
+            className="action-btn new-product"
+            onClick={handleAddNewProduct}
+          >
+            New Product ➕
           </button>
           <button className="action-btn print-list">Print List 🖨️</button>
           <button className="action-btn advanced-mode">Advanced mode ⚙️</button>
@@ -328,115 +389,55 @@ const PriceList = () => {
             </tr>
           </thead>
           <tbody>
-            {products.map((product, index) => (
-              <tr
-                key={index}
-                className={editedRows.has(index) ? "edited-row" : ""}
-              >
-                {editedRows.has(index) && (
+            {displayedProducts.map((product) => {
+              const productId = product.id || product.tempId;
+              const isEdited = editedRows.has(productId);
+
+              return (
+                <tr key={productId} className={isEdited ? "edited-row" : ""}>
                   <td className="row-indicator">
-                    <ArrowRightIcon />
+                    {isEdited && <ArrowRightIcon />}
                   </td>
-                )}
-                {!editedRows.has(index) && <td className="row-indicator"></td>}
-                <td>
-                  <input
-                    type="text"
-                    value={product.articleNo || ""}
-                    onChange={(e) =>
-                      handleInputChange(index, "articleNo", e.target.value)
-                    }
-                    className="editable-input"
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    value={product.name || ""}
-                    onChange={(e) =>
-                      handleInputChange(index, "name", e.target.value)
-                    }
-                    className="editable-input"
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    value={product.inPrice || ""}
-                    onChange={(e) =>
-                      handleInputChange(index, "inPrice", e.target.value)
-                    }
-                    className="editable-input"
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    value={product.price || ""}
-                    onChange={(e) =>
-                      handleInputChange(index, "price", e.target.value)
-                    }
-                    className="editable-input"
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    value={product.unit || ""}
-                    onChange={(e) =>
-                      handleInputChange(index, "unit", e.target.value)
-                    }
-                    className="editable-input"
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    value={product.inStock || ""}
-                    onChange={(e) =>
-                      handleInputChange(index, "inStock", e.target.value)
-                    }
-                    className="editable-input"
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    value={product.description || ""}
-                    onChange={(e) =>
-                      handleInputChange(index, "description", e.target.value)
-                    }
-                    className="editable-input"
-                  />
-                </td>
-                <td className="actions-cell">
-                  <div className="dropdown-container">
-                    <button
-                      className="dropdown-trigger"
-                      onClick={() => toggleDropdown(index)}
-                    >
-                      <ThreeDotsIcon />
-                    </button>
-                    {dropdownOpen === index && (
-                      <div className="dropdown-menu">
-                        <button
-                          className="dropdown-item save"
-                          onClick={() => handleSave(index)}
-                        >
-                          Save 123
-                        </button>
-                        <button
-                          className="dropdown-item delete"
-                          onClick={() => handleDelete(index)}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  <td>{renderInput(product, "articleNo")}</td>
+                  <td>{renderInput(product, "name")}</td>
+                  <td>{renderInput(product, "inPrice", "number")}</td>
+                  <td>{renderInput(product, "price", "number")}</td>
+                  <td>{renderInput(product, "unit")}</td>
+                  <td>{renderInput(product, "inStock", "number")}</td>
+                  <td>{renderInput(product, "description")}</td>
+                  <td className="actions-cell">
+                    <div className="dropdown-container">
+                      <button
+                        className="dropdown-trigger"
+                        onClick={() =>
+                          setDropdownOpen(
+                            dropdownOpen === productId ? null : productId
+                          )
+                        }
+                      >
+                        <ThreeDotsIcon />
+                      </button>
+                      {dropdownOpen === productId && (
+                        <div className="dropdown-menu">
+                          <button
+                            className="dropdown-item save"
+                            onClick={() => handleSave(product)}
+                          >
+                            Save
+                          </button>
+                          <button
+                            className="dropdown-item delete"
+                            onClick={() => handleDelete(product)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
