@@ -1,5 +1,5 @@
-import { Outlet } from 'react-router-dom';
-import './PrivateLayout.css';
+import { Outlet } from "react-router-dom";
+import "./PrivateLayout.css";
 
 const PrivateLayout = () => {
   return (
@@ -7,7 +7,12 @@ const PrivateLayout = () => {
       <header className="private-header">
         <div className="user-info">
           <div className="avatar">
-            <span>JA</span>
+            <img
+              src="/user-profile.jpg"
+              alt="User Avatar"
+              className="avatar-image"
+            />
+            <div className="green-dot" />
           </div>
           <div className="user-details">
             <h3>John Andre</h3>
@@ -16,7 +21,7 @@ const PrivateLayout = () => {
         </div>
         <div className="language-switcher">
           <span>Norsk Bokmål</span>
-          <img src="/flag-no.png" alt="NO" className="flag" />
+          <img src="/norway-flag.png" alt="flag" className="flag" />
         </div>
       </header>
 
@@ -24,7 +29,7 @@ const PrivateLayout = () => {
         <aside className="sidebar">
           <h2>Menu</h2>
           <nav className="sidebar-nav">
-            <a href="/dashboard/invoices" className="nav-item active">
+            <a href="/dashboard/invoices" className="nav-item">
               <span className="icon">📄</span>
               Invoices
             </a>
@@ -41,6 +46,7 @@ const PrivateLayout = () => {
               Invoice Journal
             </a>
             <a href="/dashboard/price-list" className="nav-item">
+              <div className="active-tab" />
               <span className="icon">💰</span>
               Price List
             </a>
@@ -75,7 +81,7 @@ const PrivateLayout = () => {
           </nav>
         </aside>
 
-        <main className="content">
+        <main className="private-content">
           <Outlet />
         </main>
       </div>
