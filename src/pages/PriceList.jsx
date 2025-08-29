@@ -228,8 +228,8 @@ const PriceList = () => {
     const productId = product.id || product.tempId;
     const editedProduct = getProductWithEdits(product);
 
-    if (!editedProduct.articleNo.trim() || !editedProduct.name.trim()) {
-      alert("Article No. and Product/Service fields cannot be empty.");
+    if (!String(editedProduct.price) || !editedProduct.name.trim()) {
+      alert("Product/Service and Price fields cannot be empty.");
       return;
     }
 
@@ -303,7 +303,7 @@ const PriceList = () => {
     return (
       <input
         type={type}
-        value={productData[field] || ""}
+        value={productData[field]}
         onChange={(e) => handleInputChange(product, field, e.target.value)}
         className="editable-input"
       />
